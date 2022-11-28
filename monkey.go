@@ -39,14 +39,14 @@ func (g *PatchGuard) Unpatch() {
 }
 
 func (g *PatchGuard) Restore() {
-	patchValue(g.target, g.replacement)
+	patchValue(g.target, g.replacement, false)
 }
 
 // Patch replaces a function with another
 func Patch(target, replacement interface{}) *PatchGuard {
 	t := reflect.ValueOf(target)
 	r := reflect.ValueOf(replacement)
-	patchValue(t, r)
+	patchValue(t, r, false)
 
 	return &PatchGuard{t, r}
 }
@@ -59,12 +59,23 @@ func PatchInstanceMethod(target reflect.Type, methodName string, replacement int
 		panic(fmt.Sprintf("unknown method %s", methodName))
 	}
 	r := reflect.ValueOf(replacement)
-	patchValue(m.Func, r)
+	patchValue(m.Func, r, false)
 
 	return &PatchGuard{m.Func, r}
 }
 
-func patchValue(target, replacement reflect.Value) {
+func PatchInstanceMethodIgnoreType(target reflect.Type, methodName string, replacement interface{}) *PatchGuard {
+	m, ok := target.MethodByName(methodName)
+	if !ok {
+		panic(fmt.Sprintf("unknown method %s", methodName))
+	}
+	r := reflect.ValueOf(replacement)
+	patchValue(m.Func, r, true)
+
+	return &PatchGuard{m.Func, r}
+}
+
+func patchValue(target, replacement reflect.Value, allowDifferentType bool) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -77,7 +88,7 @@ func patchValue(target, replacement reflect.Value) {
 	}
 
 	if target.Type() != replacement.Type() {
-		panic(fmt.Sprintf("target and replacement have to have the same type %s != %s", target.Type(), replacement.Type()))
+		//		panic(fmt.Sprintf("target and replacement have to have the same type %s != %s", target.Type(), replacement.Type()))
 	}
 
 	if patch, ok := patches[target.Pointer()]; ok {
